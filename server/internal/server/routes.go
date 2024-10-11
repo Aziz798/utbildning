@@ -9,6 +9,7 @@ import (
 	"server/internal/files"
 	"server/internal/types"
 	"server/internal/utils"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -61,7 +62,7 @@ func (s *FiberServer) loginUserHandler(c *fiber.Ctx) error {
 	if err := c.BodyParser(&user); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(&fiber.Map{"status": "failed", "message": err.Error()})
 	}
-	if user.Email != os.Getenv("EMAIL") || user.Password != os.Getenv("PASSWORD") {
+	if strings.ToLower(user.Email) != os.Getenv("EMAIL") || user.Password != os.Getenv("PASSWORD") {
 		return c.Status(fiber.StatusBadRequest).JSON(&fiber.Map{"status": "failed", "message": "Invalid credentials"})
 	}
 
@@ -83,8 +84,9 @@ func (s *FiberServer) ope(c *fiber.Ctx) error {
 		LastName  string `json:"last_name"`
 		Mail      string `json:"email"`
 	}
+	log.Println(os.Getenv("JSON_FILE_PATH"))
 	// Open the output.json file
-	file, err := os.Open("output.json")
+	file, err := os.Open(os.Getenv("JSON_FILE_PATH"))
 	if err != nil {
 		log.Printf("Error opening JSON file: %v", err)
 		return c.Status(fiber.StatusInternalServerError).SendString("Error reading JSON file")
@@ -98,10 +100,10 @@ func (s *FiberServer) ope(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Error parsing JSON")
 	}
 
-	// Log the parsed data
-	for _, person := range people {
-		log.Printf("First Name: %s, Last Name: %s, Mail: %s\n", person.FirstName, person.LastName, person.Mail)
-	}
+	// // Log the parsed data
+	// for _, person := range people {
+	// 	log.Printf("First Name: %s, Last Name: %s, Mail: %s\n", person.FirstName, person.LastName, person.Mail)
+	// }
 
 	return c.Status(fiber.StatusOK).JSON(people) // Optionally return the data as a JSON response
 }
