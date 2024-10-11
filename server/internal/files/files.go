@@ -11,9 +11,8 @@ import (
 
 // Define a struct to represent the data
 type Person struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Mail      string `json:"mail"`
+	Name string `json:"name"`
+	Mail string `json:"email"`
 }
 
 func Analyze() {
@@ -47,9 +46,8 @@ func Analyze() {
 		if len(row) > 9 {
 			// Extract the values from columns C, D, and J
 			person := Person{
-				FirstName: row[2], // Column C (2nd index)
-				LastName:  row[3], // Column D (3rd index)
-				Mail:      row[9], // Column J (9th index)
+				Name: fmt.Sprintf("%s %s", row[2], row[3]), // Column D (3rd index)
+				Mail: row[9],                               // Column J (9th index)
 			}
 			// Add the person to the slice
 			people = append(people, person)

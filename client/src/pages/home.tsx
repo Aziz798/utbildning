@@ -8,7 +8,7 @@ import { Eye, EyeOff } from "lucide-react";
 import axiosInstance from "@/lib/axios-instance";
 import { AxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
-import { ModeToggle } from "@/components/shared/mode-toggle";
+import { ModeToggle } from "@/components/theme/mode-toggle";
 export default function Home() {
     const [data, setData] = useState({
         email: "",
@@ -28,7 +28,7 @@ export default function Home() {
             })
             localStorage.setItem("accessToken", res.data.access_token);
             localStorage.setItem("refreshToken", res.data.refresh_token);
-            nav("/dashboard");
+            nav("/email");
 
         } catch (error) {
             console.log(error)

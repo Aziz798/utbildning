@@ -10,26 +10,31 @@ import (
 	"server/internal/types"
 	"server/internal/utils"
 	"strings"
+	"sync"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func (s *FiberServer) RegisterFiberRoutes() {
 	origins := os.Getenv("FRONTEND_URL")
 	s.App.Use(cors.New(cors.Config{
 		AllowOrigins:     origins,
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Refresh-Token, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Idempotency-Key,X-Cache",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Refresh-Token",
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH",
 		AllowCredentials: true,
 	}))
 	api := s.App.Group("/api")
+	api.Post("/refresh-token", RefreshTokenHandler)
 	api.Get("/", s.HelloWorldHandler)
-	api.Get("/send-email", s.sendEmail)
 	api.Post("/login", s.loginUserHandler)
+	// api.Use(middleware.AuthenticationMiddleware())
+	api.Get("/send-email", s.sendEmail)
 	api.Get("/file-analyze", s.fileAnalyze)
 	api.Get("/ope", s.ope)
-	api.Post("/refresh-token", RefreshTokenHandler)
+	api.Post("/send-email-through-json-file", s.sendMailThroughJsonFile)
+
 }
 
 func (s *FiberServer) HelloWorldHandler(c *fiber.Ctx) error {
@@ -80,11 +85,9 @@ func (s *FiberServer) fileAnalyze(c *fiber.Ctx) error {
 func (s *FiberServer) ope(c *fiber.Ctx) error {
 	// Define a struct to represent the data
 	type Person struct {
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Mail      string `json:"email"`
+		Name string `json:"name"`
+		Mail string `json:"email"`
 	}
-	log.Println(os.Getenv("JSON_FILE_PATH"))
 	// Open the output.json file
 	file, err := os.Open(os.Getenv("JSON_FILE_PATH"))
 	if err != nil {
@@ -142,4 +145,74 @@ func RefreshTokenHandler(c *fiber.Ctx) error {
 		"accessToken":  newAccessToken,
 		"refreshToken": newRefreshToken,
 	})
+}
+
+func (s *FiberServer) sendMailThroughJsonFile(c *fiber.Ctx) error {
+	var emailToSend struct {
+		Subject string `json:"subject"`
+		Body    string `json:"body"`
+	}
+
+	type Person struct {
+		Name string `json:"name"`
+		Mail string `json:"email"`
+	}
+
+	if err := c.BodyParser(&emailToSend); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	file, err := os.Open(os.Getenv("JSON_FILE_PATH"))
+	if err != nil {
+		log.Printf("Error opening JSON file: %v", err)
+		return c.Status(fiber.StatusInternalServerError).SendString("Error reading JSON file")
+	}
+	defer file.Close()
+
+	var people []Person
+	if err := json.NewDecoder(file).Decode(&people); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
+		return c.Status(fiber.StatusInternalServerError).SendString("Error parsing JSON")
+	}
+
+	concurrencyLimit := 100
+	sem := make(chan struct{}, concurrencyLimit)
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(people))
+
+	for _, u := range people {
+		sem <- struct{}{}
+		wg.Add(1)
+
+		go func(user Person) {
+			defer func() { <-sem }()
+			defer wg.Done()
+
+			err := email.SendEmail(types.Email{
+				EmailTo: user.Mail,
+				Subject: emailToSend.Subject,
+				Body:    emailToSend.Body,
+			})
+
+			errChan <- err
+		}(u)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	// Collect errors
+	var failedEmails []string
+	for err := range errChan {
+		if err != nil {
+			log.Printf("Error sending email: %v", err)
+			failedEmails = append(failedEmails, err.Error())
+		}
+	}
+
+	if len(failedEmails) > 0 {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"message": "Some emails failed", "errors": failedEmails})
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{"message": "Emails sent to all users"})
 }

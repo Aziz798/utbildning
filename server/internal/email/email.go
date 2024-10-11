@@ -1,6 +1,7 @@
 package email
 
 import (
+	"errors"
 	"log"
 	"os"
 	"server/internal/types"
@@ -16,14 +17,10 @@ func SendEmail(emailToSend types.Email) error {
 	htmlContent := ""
 	message := mail.NewSingleEmail(from, emailToSend.Subject, to, emailToSend.Body, htmlContent)
 	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
-	response, err := client.Send(message)
+	_, err := client.Send(message)
 	if err != nil {
 		log.Println(err)
-		return err
-	} else {
-		log.Println(response.StatusCode)
-		log.Println(response.Body)
-		log.Println(response.Headers)
+		return errors.New(emailToSend.EmailTo)
 	}
 	return nil
 }

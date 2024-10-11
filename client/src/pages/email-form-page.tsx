@@ -17,17 +17,18 @@ import {
 } from "@/components/ui/alert-dialog"
 import axiosInstance from "@/lib/axios-instance"
 import { toast } from "sonner"
+import { AxiosError } from "axios"
 
 export default function SendEmailForm() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [subject, setSubject] = useState("")
-    const [title, setTitle] = useState("")
     const [body, setBody] = useState("")
+    const [errors, setErrors] = useState<null | { [key: string]: string }>(null)
 
     const handleSendEmail = async () => {
         try {
             setIsDialogOpen(false)
-            const res = await axiosInstance.post("normal-email/send/", { subject, title, body })
+            const res = await axiosInstance.post("/send-email-through-json-file", { subject, body })
             console.log(res.data)
             toast("email sent successfully", {
                 description: "Your email has been sent successfully",
@@ -41,7 +42,6 @@ export default function SendEmailForm() {
 
             // Reset form fields after sending
             setSubject("")
-            setTitle("")
             setBody("")
         } catch (error) {
             console.log(error)
@@ -52,6 +52,9 @@ export default function SendEmailForm() {
                     onClick: () => console.log("Undo"),
                 },
             })
+            if (error instanceof AxiosError) {
+               setErrors(error.response?.data)
+            }
         }
     }
 
@@ -73,16 +76,7 @@ export default function SendEmailForm() {
                             required
                         />
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="title">Title</Label>
-                        <Input
-                            id="title"
-                            placeholder="Enter email title"
-                            value={title}
-                            onChange={(e:React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-                            required
-                        />
-                    </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="body">Body</Label>
                         <Textarea
@@ -99,7 +93,7 @@ export default function SendEmailForm() {
             <CardFooter>
                 <Button className="w-full" onClick={() => setIsDialogOpen(true)}>Send Email</Button>
             </CardFooter>
-
+        <div>{errors && JSON.stringify(errors)}</div>
             <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
